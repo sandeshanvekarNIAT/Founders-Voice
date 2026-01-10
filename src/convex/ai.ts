@@ -129,9 +129,18 @@ export const processAudioChunk = action({
       text.includes("unique in the world")
     ) {
       triggerType = "reality_check";
+
+      // Use Tavily for tactical fact-checking
+      const factCheck: any = await ctx.runAction(internal.tavily.tacticalFactCheck, {
+        sessionId: args.sessionId,
+        founderClaim: args.transcript,
+        triggerType: "reality_check",
+      });
+
       vcResponse = await generateVCInterruption(
         "reality_check",
-        args.transcript
+        args.transcript,
+        factCheck.success ? factCheck.facts : undefined
       );
     }
 
@@ -143,7 +152,19 @@ export const processAudioChunk = action({
       text.includes("burn rate")
     ) {
       triggerType = "math_check";
-      vcResponse = await generateVCInterruption("math_check", args.transcript);
+
+      // Use Tavily for industry benchmarks
+      const factCheck: any = await ctx.runAction(internal.tavily.tacticalFactCheck, {
+        sessionId: args.sessionId,
+        founderClaim: args.transcript,
+        triggerType: "math_check",
+      });
+
+      vcResponse = await generateVCInterruption(
+        "math_check",
+        args.transcript,
+        factCheck.success ? factCheck.facts : undefined
+      );
     }
 
     // BS Detector triggers
@@ -154,7 +175,19 @@ export const processAudioChunk = action({
       text.includes("blockchain")
     ) {
       triggerType = "bs_detector";
-      vcResponse = await generateVCInterruption("bs_detector", args.transcript);
+
+      // Use Tavily for technology validation
+      const factCheck: any = await ctx.runAction(internal.tavily.tacticalFactCheck, {
+        sessionId: args.sessionId,
+        founderClaim: args.transcript,
+        triggerType: "bs_detector",
+      });
+
+      vcResponse = await generateVCInterruption(
+        "bs_detector",
+        args.transcript,
+        factCheck.success ? factCheck.facts : undefined
+      );
     }
 
     // If triggered, add interruption
@@ -173,23 +206,29 @@ export const processAudioChunk = action({
   },
 });
 
-// Generate VC interruption using GPT-4
+// Generate VC interruption using GPT-4 (with optional Tavily facts)
 async function generateVCInterruption(
   triggerType: string,
-  founderStatement: string
+  founderStatement: string,
+  tavilyFacts?: Array<{ source: string; fact: string; url: string }>
 ): Promise<string> {
+  // Build context with Tavily facts if available
+  const factsContext = tavilyFacts && tavilyFacts.length > 0
+    ? `\n\nREAL MARKET DATA (from Tavily search):\n${tavilyFacts.map((f) => `- ${f.source}: ${f.fact}`).join("\n")}`
+    : "";
+
   const prompts = {
-    reality_check: `The founder just claimed: "${founderStatement}"
+    reality_check: `The founder just claimed: "${founderStatement}"${factsContext}
 
-You are a hardcore VC. Challenge this claim about market/competitors. Be sharp, direct, and cite real competitors if possible. Keep it to 1-2 sentences.`,
+You are a hardcore VC. Challenge this claim about market/competitors. ${tavilyFacts ? "Use the real market data above to cite specific competitors or facts." : "Be sharp and direct."} Keep it to 1-2 sentences.`,
 
-    math_check: `The founder mentioned: "${founderStatement}"
+    math_check: `The founder mentioned: "${founderStatement}"${factsContext}
 
-You are a hardcore VC. Ask about the underlying numbers: CAC, LTV, runway, burn rate. Be direct and expect precision. Keep it to 1-2 sentences.`,
+You are a hardcore VC. Ask about the underlying numbers: CAC, LTV, runway, burn rate. ${tavilyFacts ? "Reference industry benchmarks from the data above if relevant." : "Be direct and expect precision."} Keep it to 1-2 sentences.`,
 
-    bs_detector: `The founder said: "${founderStatement}"
+    bs_detector: `The founder said: "${founderStatement}"${factsContext}
 
-You are a hardcore VC who hates buzzwords. Call out if this sounds like a "GPT wrapper" or generic tech claim. Demand specifics about the actual IP or moat. Keep it to 1-2 sentences.`,
+You are a hardcore VC who hates buzzwords. Call out if this sounds like a "GPT wrapper" or generic tech claim. ${tavilyFacts ? "Use the real data above to validate or challenge the technology claim." : "Demand specifics about the actual IP or moat."} Keep it to 1-2 sentences.`,
   };
 
   const openai = getOpenAIClient();
@@ -199,14 +238,14 @@ You are a hardcore VC who hates buzzwords. Call out if this sounds like a "GPT w
       {
         role: "system",
         content:
-          "You are a hardcore Silicon Valley VC conducting a brutal pitch interrogation. Be sharp, direct, and unforgiving.",
+          "You are a hardcore Silicon Valley VC conducting a brutal pitch interrogation. Be sharp, direct, and unforgiving. When given market data, cite it specifically.",
       },
       {
         role: "user",
         content: prompts[triggerType as keyof typeof prompts],
       },
     ],
-    max_tokens: 100,
+    max_tokens: 150,
     temperature: 0.8,
   });
 

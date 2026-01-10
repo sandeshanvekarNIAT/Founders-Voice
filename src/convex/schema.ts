@@ -45,6 +45,7 @@ const schema = defineSchema(
       ),
       pitchContextPdf: v.optional(v.id("_storage")),
       pitchContextText: v.optional(v.string()),
+      marketContext: v.optional(v.string()), // Tavily pre-fetch results (JSON string)
       startTime: v.optional(v.number()),
       endTime: v.optional(v.number()),
       transcript: v.optional(v.string()),

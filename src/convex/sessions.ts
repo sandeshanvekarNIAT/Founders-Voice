@@ -23,6 +23,14 @@ export const createPitchSession = mutation({
       pitchContextText: args.pitchContextText,
     });
 
+    // Trigger pre-fetch market context using Tavily
+    if (args.pitchContextText) {
+      await ctx.scheduler.runAfter(0, internal.tavily.prefetchMarketContext, {
+        sessionId,
+        pitchContext: args.pitchContextText,
+      });
+    }
+
     return sessionId;
   },
 });
@@ -229,6 +237,18 @@ export const updateReportCard = internalMutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.sessionId, {
       reportCard: args.reportCard,
+    });
+  },
+});
+
+export const updateSessionContext = internalMutation({
+  args: {
+    sessionId: v.id("pitchSessions"),
+    marketContext: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.sessionId, {
+      marketContext: args.marketContext,
     });
   },
 });
