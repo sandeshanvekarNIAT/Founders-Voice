@@ -249,6 +249,7 @@ export default function HotSeat() {
             lastSpeechTimeRef.current = Date.now(); // Track when user last spoke
             console.log("📝 Transcript updated:", finalTranscript);
             console.log("📝 Total transcript length:", transcriptRef.current.length, "characters");
+            console.log("📝 Full transcript so far:", transcriptRef.current);
           }
         };
 
@@ -416,6 +417,18 @@ export default function HotSeat() {
                 <StopCircle className="mr-2" />
                 End Session
               </Button>
+
+              {/* DEBUG: Test interruption button */}
+              {isRecording && (
+                <Button
+                  onClick={() => playVCInterruption("Wait, you said no competitors? That doesn't make sense. I know at least 3 companies doing exactly this.")}
+                  variant="outline"
+                  className="w-full mt-2"
+                  size="sm"
+                >
+                  🧪 Test Interruption
+                </Button>
+              )}
             </Card>
 
             {/* Session Info */}
