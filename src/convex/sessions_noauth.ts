@@ -143,3 +143,15 @@ export const getUserSessions = query({
     return sessions;
   },
 });
+
+export const updateTranscript = mutation({
+  args: {
+    sessionId: v.id("pitchSessions"),
+    transcript: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.sessionId, {
+      transcript: args.transcript,
+    });
+  },
+});

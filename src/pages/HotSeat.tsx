@@ -25,6 +25,8 @@ export default function HotSeat() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const transcriptRef = useRef<string>("");
 
   // TEST MODE: Using no-auth versions
   const session = useQuery(
@@ -39,6 +41,7 @@ export default function HotSeat() {
 
   const startSession = useMutation(api.sessions_noauth.startPitchSession);
   const endSession = useMutation(api.sessions_noauth.endPitchSession);
+  const updateTranscript = useMutation(api.sessions_noauth.updateTranscript);
 
   useEffect(() => {
     if (!sessionId) {
@@ -83,6 +86,13 @@ export default function HotSeat() {
       }
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          // Recognition might already be stopped
+        }
       }
     };
   }, []);
@@ -131,6 +141,45 @@ export default function HotSeat() {
       };
 
       mediaRecorder.start(1000); // Capture in 1-second chunks
+
+      // Set up speech recognition for transcript
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        recognition.onresult = (event: any) => {
+          let interimTranscript = '';
+          let finalTranscript = '';
+
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript + ' ';
+            } else {
+              interimTranscript += transcript;
+            }
+          }
+
+          if (finalTranscript) {
+            transcriptRef.current += finalTranscript;
+            console.log("Transcript:", transcriptRef.current);
+          }
+        };
+
+        recognition.onerror = (event: any) => {
+          console.error("Speech recognition error:", event.error);
+        };
+
+        recognition.start();
+        recognitionRef.current = recognition;
+      } else {
+        console.warn("Speech recognition not supported in this browser");
+        toast.error("Speech recognition not supported. Transcript won't be captured.");
+      }
+
       setIsRecording(true);
       setIsSpeaking("user");
       toast.success("Recording started. The Hot Seat is LIVE.");
@@ -157,6 +206,15 @@ export default function HotSeat() {
         animationFrameRef.current = null;
       }
 
+      // Stop speech recognition
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          console.error("Error stopping recognition:", e);
+        }
+      }
+
       setIsRecording(false);
       setIsSpeaking(null);
       setAudioLevel(0);
@@ -167,6 +225,14 @@ export default function HotSeat() {
     stopRecording();
 
     if (sessionId) {
+      // Save transcript to database
+      if (transcriptRef.current) {
+        await updateTranscript({
+          sessionId: sessionId as Id<"pitchSessions">,
+          transcript: transcriptRef.current,
+        });
+      }
+
       await endSession({ sessionId: sessionId as Id<"pitchSessions"> });
       toast.success("Session ended. Generating your Report Card...");
       navigate(`/report/${sessionId}`);
