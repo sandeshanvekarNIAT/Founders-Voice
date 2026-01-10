@@ -165,12 +165,27 @@ export default function HotSeat() {
 
           if (finalTranscript) {
             transcriptRef.current += finalTranscript;
-            console.log("Transcript:", transcriptRef.current);
+            console.log("📝 Transcript updated:", finalTranscript);
+            console.log("📝 Total transcript length:", transcriptRef.current.length, "characters");
           }
         };
 
         recognition.onerror = (event: any) => {
-          console.error("Speech recognition error:", event.error);
+          console.error("❌ Speech recognition error:", event.error);
+          if (event.error === 'not-allowed') {
+            toast.error("Microphone permission denied. Please allow microphone access.");
+          } else if (event.error === 'no-speech') {
+            console.warn("No speech detected");
+          }
+        };
+
+        recognition.onstart = () => {
+          console.log("🎤 Speech recognition started");
+          toast.success("Speech recognition active - your words are being captured!");
+        };
+
+        recognition.onend = () => {
+          console.log("🎤 Speech recognition ended");
         };
 
         recognition.start();
@@ -226,11 +241,31 @@ export default function HotSeat() {
 
     if (sessionId) {
       // Save transcript to database
-      if (transcriptRef.current) {
-        await updateTranscript({
-          sessionId: sessionId as Id<"pitchSessions">,
-          transcript: transcriptRef.current,
-        });
+      const finalTranscript = transcriptRef.current.trim();
+
+      if (finalTranscript) {
+        try {
+          await updateTranscript({
+            sessionId: sessionId as Id<"pitchSessions">,
+            transcript: finalTranscript,
+          });
+          console.log("Transcript saved successfully:", finalTranscript.length, "characters");
+        } catch (error) {
+          console.error("Failed to save transcript:", error);
+          toast.error("Failed to save transcript, but continuing...");
+        }
+      } else {
+        console.warn("No transcript captured - speech recognition may not be supported or no speech detected");
+        toast.warning("No speech detected. Report will be generated from context only.");
+        // Save a placeholder to indicate no speech was captured
+        try {
+          await updateTranscript({
+            sessionId: sessionId as Id<"pitchSessions">,
+            transcript: "[No speech detected - please ensure microphone is working and browser supports speech recognition]",
+          });
+        } catch (error) {
+          console.error("Failed to save placeholder transcript:", error);
+        }
       }
 
       await endSession({ sessionId: sessionId as Id<"pitchSessions"> });
