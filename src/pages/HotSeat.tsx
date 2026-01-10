@@ -25,18 +25,19 @@ export default function HotSeat() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
 
+  // TEST MODE: Using no-auth versions
   const session = useQuery(
-    api.sessions.getPitchSession,
+    api.sessions_noauth.getPitchSession,
     sessionId ? { sessionId: sessionId as Id<"pitchSessions"> } : "skip"
   );
 
   const interruptions = useQuery(
-    api.sessions.getInterruptions,
+    api.sessions_noauth.getInterruptions,
     sessionId ? { sessionId: sessionId as Id<"pitchSessions"> } : "skip"
   );
 
-  const startSession = useMutation(api.sessions.startPitchSession);
-  const endSession = useMutation(api.sessions.endPitchSession);
+  const startSession = useMutation(api.sessions_noauth.startPitchSession);
+  const endSession = useMutation(api.sessions_noauth.endPitchSession);
 
   useEffect(() => {
     if (!sessionId) {

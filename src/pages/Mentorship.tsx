@@ -65,8 +65,9 @@ export default function Mentorship() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // TEST MODE: Using no-auth version
   const session = useQuery(
-    api.sessions.getPitchSession,
+    api.sessions_noauth.getPitchSession,
     sessionId ? { sessionId: sessionId as Id<"pitchSessions"> } : "skip"
   );
 

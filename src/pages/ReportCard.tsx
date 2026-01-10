@@ -49,8 +49,9 @@ export default function ReportCard() {
   const navigate = useNavigate();
   const [selectedPillar, setSelectedPillar] = useState<string | null>(null);
 
+  // TEST MODE: Using no-auth version
   const session = useQuery(
-    api.sessions.getPitchSession,
+    api.sessions_noauth.getPitchSession,
     sessionId ? { sessionId: sessionId as Id<"pitchSessions"> } : "skip"
   );
 
