@@ -71,10 +71,14 @@ export default function HotSeat() {
     return () => {
       // Stop recording and clean up resources on unmount
       if (mediaRecorderRef.current) {
-        mediaRecorderRef.current.stop();
+        try {
+          mediaRecorderRef.current.stop();
+        } catch (e) {
+          // MediaRecorder might already be stopped
+        }
         mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
       }
-      if (audioContextRef.current) {
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close();
       }
       if (animationFrameRef.current) {
@@ -141,9 +145,11 @@ export default function HotSeat() {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
 
-      if (audioContextRef.current) {
+      // Close AudioContext only if it's not already closed
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close();
       }
+      audioContextRef.current = null;
 
       // Cancel animation frame
       if (animationFrameRef.current) {
