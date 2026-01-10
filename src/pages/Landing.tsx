@@ -120,7 +120,7 @@ export default function Landing() {
               className="flex flex-col sm:flex-row gap-4 justify-center"
             >
               <Button
-                onClick={() => navigate(user ? "/war-room" : "/auth")}
+                onClick={() => navigate("/war-room")}
                 size="lg"
                 className="glow-electric text-lg h-14 px-8"
               >
@@ -269,7 +269,7 @@ export default function Landing() {
               The Hot Seat is waiting. 3 minutes that could save you years.
             </p>
             <Button
-              onClick={() => navigate(user ? "/war-room" : "/auth")}
+              onClick={() => navigate("/war-room")}
               size="lg"
               className="glow-electric text-lg h-14 px-12"
             >

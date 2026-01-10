@@ -16,13 +16,15 @@ export default function WarRoom() {
   const [pitchText, setPitchText] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
-  const createSession = useMutation(api.sessions.createPitchSession);
-  const generateUploadUrl = useMutation(api.sessions.generateUploadUrl);
+  // TEST MODE: Using no-auth versions
+  const createSession = useMutation(api.sessions_noauth.createPitchSession);
+  const generateUploadUrl = useMutation(api.sessions_noauth.generateUploadUrl);
 
-  if (!user) {
-    navigate("/auth");
-    return null;
-  }
+  // AUTHENTICATION DISABLED FOR TESTING
+  // if (!user) {
+  //   navigate("/auth");
+  //   return null;
+  // }
 
   const handlePdfUpload = async (file: File) => {
     setIsUploading(true);
