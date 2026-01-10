@@ -31,21 +31,32 @@ function getGroqClient() {
 // Generate the Fundability Report Card using Google Gemini 1.5 Flash
 export const generateReportCard = internalAction({
   args: { sessionId: v.id("pitchSessions") },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
+    console.log("🧠 Starting report card generation for session:", args.sessionId);
+
     // Get session data
-    const session = await ctx.runQuery(internal.sessions.getSessionInternal, {
+    const session: any = await ctx.runQuery(internal.sessions.getSessionInternal, {
       sessionId: args.sessionId,
     });
 
     if (!session) {
+      console.error("❌ Session not found:", args.sessionId);
       throw new Error("Session not found");
     }
+
+    console.log("📝 Session data retrieved:", {
+      hasTranscript: !!session.transcript,
+      transcriptLength: session.transcript?.length || 0,
+      hasPitchContext: !!session.pitchContextText,
+    });
 
     // Get all interruptions for context
     const interruptions = await ctx.runQuery(
       internal.sessions.getInterruptionsInternal,
       { sessionId: args.sessionId }
     );
+
+    console.log("📋 Interruptions retrieved:", interruptions.length);
 
     // Build context for Gemini
     const prompt = `You are a hardcore VC analyst using the Bill Payne Scorecard method. Analyze this pitch session and generate a comprehensive Fundability Report Card.
@@ -82,29 +93,76 @@ Provide ONLY a JSON response with this EXACT structure (no markdown, no code blo
 }`;
 
     try {
+      console.log("🤖 Initializing Gemini API...");
       const genAI = getGeminiClient();
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
+      console.log("📤 Sending request to Gemini...");
       const result = await model.generateContent(prompt);
       const response = result.response;
       const text = response.text();
 
+      console.log("📥 Received response from Gemini, length:", text.length);
+      console.log("📄 Raw response preview:", text.substring(0, 200));
+
       // Clean up the response (remove markdown code blocks if present)
       const cleanText = text.replace(/```json\n?|\n?```/g, "").trim();
+
+      console.log("🧹 Cleaned response, parsing JSON...");
 
       // Parse the JSON response
       const reportCard = JSON.parse(cleanText);
 
+      console.log("✅ Report card parsed successfully:", {
+        overallScore: reportCard.overallScore,
+        hasInsights: !!reportCard.insights,
+      });
+
       // Save to database
+      console.log("💾 Saving report card to database...");
       await ctx.runMutation(internal.sessions.updateReportCard, {
         sessionId: args.sessionId,
         reportCard,
       });
 
+      console.log("🎉 Report card generation complete!");
       return reportCard;
-    } catch (error) {
-      console.error("Failed to generate report card:", error);
-      throw error;
+    } catch (error: any) {
+      console.error("❌ Failed to generate report card:", error);
+      console.error("❌ Error details:", {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+      });
+
+      // Create a fallback report card
+      console.log("🔄 Creating fallback report card...");
+      const fallbackReportCard: any = {
+        marketClarity: 50,
+        techDefensibility: 50,
+        unitEconomicLogic: 50,
+        investorReadiness: 50,
+        overallScore: 50,
+        coachabilityDelta: 0,
+        insights: `Unable to generate full analysis due to technical error. Based on available data: ${
+          session.transcript
+            ? "Transcript captured successfully"
+            : "No transcript available"
+        }. ${
+          session.pitchContextText
+            ? "Pitch context provided"
+            : "No pitch context provided"
+        }. Please review your session data and try again.`,
+      };
+
+      // Save fallback to database so user isn't stuck
+      await ctx.runMutation(internal.sessions.updateReportCard, {
+        sessionId: args.sessionId,
+        reportCard: fallbackReportCard,
+      });
+
+      console.log("⚠️ Fallback report card saved");
+      return fallbackReportCard;
     }
   },
 });
