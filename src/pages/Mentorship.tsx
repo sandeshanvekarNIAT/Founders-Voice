@@ -141,14 +141,23 @@ export default function Mentorship() {
         <div className="max-w-5xl mx-auto h-[calc(100vh-8rem)] flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <Button
-              variant="ghost"
-              onClick={() => navigate(`/report/${sessionId}`)}
-              className="gap-2"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back to Report
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => navigate("/")}
+                className="gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Home
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => navigate(`/report/${sessionId}`)}
+                className="gap-2"
+              >
+                Back to Report
+              </Button>
+            </div>
 
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="font-mono-terminal">
