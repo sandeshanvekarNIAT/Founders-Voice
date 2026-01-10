@@ -24,6 +24,7 @@ export default function HotSeat() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   // TEST MODE: Using no-auth versions
   const session = useQuery(
@@ -65,6 +66,23 @@ export default function HotSeat() {
     return () => clearInterval(timer);
   }, [isRecording]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Stop recording and clean up resources on unmount
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -90,11 +108,12 @@ export default function HotSeat() {
         const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
         setAudioLevel(average / 255);
 
-        if (isRecording) {
-          requestAnimationFrame(updateAudioLevel);
-        }
+        // Continue animation loop
+        animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
       };
-      updateAudioLevel();
+
+      // Start the animation loop
+      animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
 
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
@@ -124,6 +143,12 @@ export default function HotSeat() {
 
       if (audioContextRef.current) {
         audioContextRef.current.close();
+      }
+
+      // Cancel animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
       }
 
       setIsRecording(false);
