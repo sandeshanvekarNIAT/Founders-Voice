@@ -317,3 +317,19 @@ export const addChatMessage = internalMutation({
     }
   },
 });
+
+export const updateInterruptionReaction = internalMutation({
+  args: {
+    interruptionId: v.id("interruptions"),
+    founderReaction: v.union(
+      v.literal("defensive"),
+      v.literal("receptive"),
+      v.literal("neutral")
+    ),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.interruptionId, {
+      founderReaction: args.founderReaction,
+    });
+  },
+});

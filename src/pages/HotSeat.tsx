@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "framer-motion";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { HotSeatTimer } from "@/components/HotSeatTimer";
 import { WaveformVisualizer } from "@/components/WaveformVisualizer";
 import { InterruptionLog } from "@/components/InterruptionLog";
+import { VCAudioPlayer, blobToBase64 } from "@/lib/audio-player";
 
 export default function HotSeat() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -27,6 +28,9 @@ export default function HotSeat() {
   const animationFrameRef = useRef<number | null>(null);
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef<string>("");
+  const lastSpeechTimeRef = useRef<number>(Date.now());
+  const audioPlayerRef = useRef<VCAudioPlayer>(new VCAudioPlayer());
+  const lastInterruptionCountRef = useRef<number>(0);
 
   // TEST MODE: Using no-auth versions
   const session = useQuery(
@@ -42,6 +46,7 @@ export default function HotSeat() {
   const startSession = useMutation(api.sessions_noauth.startPitchSession);
   const endSession = useMutation(api.sessions_noauth.endPitchSession);
   const updateTranscript = useMutation(api.sessions_noauth.updateTranscript);
+  const processAudioChunk = useAction(api.ai.processAudioChunk);
 
   useEffect(() => {
     if (!sessionId) {
@@ -68,6 +73,23 @@ export default function HotSeat() {
 
     return () => clearInterval(timer);
   }, [isRecording]);
+
+  // Real-time interruption playback
+  useEffect(() => {
+    if (!interruptions || !isRecording) return;
+
+    const newCount = interruptions.length;
+    if (newCount > lastInterruptionCountRef.current) {
+      // New interruption detected!
+      const newInterruption = interruptions[newCount - 1];
+      console.log("🚨 NEW INTERRUPTION DETECTED:", newInterruption);
+
+      // Play VC interruption with TTS
+      playVCInterruption(newInterruption.vcResponse);
+
+      lastInterruptionCountRef.current = newCount;
+    }
+  }, [interruptions, isRecording]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -96,6 +118,48 @@ export default function HotSeat() {
       }
     };
   }, []);
+
+  // Play VC interruption with aggressive TTS
+  const playVCInterruption = async (text: string) => {
+    console.log("🎤 Playing VC interruption:", text);
+
+    // Pause user recording during AI speech (aggressive interruption)
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.pause();
+      console.log("⏸️ User mic paused for VC interruption");
+    }
+
+    // Configure audio player callbacks
+    audioPlayerRef.current.onStart(() => {
+      setIsSpeaking("ai");
+      toast.info("VC interrupting...", { duration: 2000 });
+    });
+
+    audioPlayerRef.current.onEnd(() => {
+      // Resume user recording after AI finishes
+      if (mediaRecorderRef.current?.state === "paused") {
+        mediaRecorderRef.current.resume();
+        console.log("▶️ User mic resumed after VC interruption");
+      }
+      setIsSpeaking("user");
+    });
+
+    audioPlayerRef.current.onError((error) => {
+      console.error("❌ TTS error:", error);
+      // Resume anyway if error
+      if (mediaRecorderRef.current?.state === "paused") {
+        mediaRecorderRef.current.resume();
+      }
+      setIsSpeaking("user");
+    });
+
+    // Play the interruption
+    try {
+      await audioPlayerRef.current.playVCInterruption(text);
+    } catch (error) {
+      console.error("❌ Failed to play interruption:", error);
+    }
+  };
 
   const startRecording = async () => {
     try {
@@ -133,14 +197,31 @@ export default function HotSeat() {
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = async (event) => {
-        if (event.data.size > 0) {
-          // Here we would send audio chunks to the backend for processing
-          // This connects to the OpenAI Realtime API via Convex actions
-          console.log("Audio chunk:", event.data);
+        if (event.data.size > 0 && sessionId) {
+          console.log("📦 Audio chunk captured:", event.data.size, "bytes");
+
+          // Convert blob to base64 for transmission
+          try {
+            const base64Audio = await blobToBase64(event.data);
+
+            // Calculate pause duration
+            const pauseDuration = Date.now() - lastSpeechTimeRef.current;
+
+            // Send to backend for real-time processing
+            const result = await processAudioChunk({
+              sessionId: sessionId as Id<"pitchSessions">,
+              audioData: base64Audio,
+              transcript: transcriptRef.current,
+            });
+
+            console.log("🔍 Chunk processed:", result);
+          } catch (error) {
+            console.error("❌ Failed to process audio chunk:", error);
+          }
         }
       };
 
-      mediaRecorder.start(1000); // Capture in 1-second chunks
+      mediaRecorder.start(500); // Capture in 500ms chunks for aggressive interruptions
 
       // Set up speech recognition for transcript
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -165,6 +246,7 @@ export default function HotSeat() {
 
           if (finalTranscript) {
             transcriptRef.current += finalTranscript;
+            lastSpeechTimeRef.current = Date.now(); // Track when user last spoke
             console.log("📝 Transcript updated:", finalTranscript);
             console.log("📝 Total transcript length:", transcriptRef.current.length, "characters");
           }

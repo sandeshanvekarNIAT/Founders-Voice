@@ -155,3 +155,16 @@ export const updateTranscript = mutation({
     });
   },
 });
+
+export const submitFounderResponse = mutation({
+  args: {
+    interruptionId: v.id("interruptions"),
+    responseText: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.interruptionId, {
+      founderResponseText: args.responseText,
+      responseTimestamp: Date.now(),
+    });
+  },
+});

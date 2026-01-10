@@ -175,6 +175,29 @@ export const processAudioChunk = action({
     transcript: v.string(),
   },
   handler: async (ctx, args) => {
+    console.log("🔍 Processing audio chunk for session:", args.sessionId);
+    console.log("📝 Current transcript length:", args.transcript.length);
+
+    // Get existing interruptions to enforce frequency limits
+    const interruptions: any = await ctx.runQuery(
+      internal.sessions.getInterruptionsInternal,
+      { sessionId: args.sessionId }
+    );
+
+    console.log("📋 Existing interruptions:", interruptions.length);
+
+    // FREQUENCY LIMIT: Maximum 3 interruptions total (LOW frequency as requested)
+    if (interruptions.length >= 3) {
+      console.log("⚠️ Max interruptions reached (3/3)");
+      return { interrupted: false };
+    }
+
+    // MINIMUM TRANSCRIPT LENGTH: Don't interrupt too early
+    if (args.transcript.length < 100) {
+      console.log("⏳ Waiting for more content...");
+      return { interrupted: false };
+    }
+
     // Analyze transcript for trigger patterns
     const text = args.transcript.toLowerCase();
 
@@ -251,15 +274,20 @@ export const processAudioChunk = action({
       );
     }
 
-    // If triggered, add interruption
+    // If triggered, add interruption (AGGRESSIVE - no pause required)
     if (triggerType && vcResponse) {
+      console.log("🚨 TRIGGER DETECTED:", triggerType);
+      console.log("💬 VC Response:", vcResponse);
+      console.log("⚡ INTERRUPTING MID-SENTENCE (aggressive mode)");
+
       await ctx.runMutation(internal.sessions.addInterruptionInternal, {
         sessionId: args.sessionId,
         triggerType,
-        founderStatement: args.transcript,
+        founderStatement: args.transcript.substring(args.transcript.length - 200), // Last 200 chars
         vcResponse,
       });
 
+      console.log("✅ Interruption saved to database");
       return { interrupted: true, vcResponse };
     }
 
@@ -318,6 +346,56 @@ You are a hardcore VC who hates buzzwords. Call out if this sounds like a "GPT w
     return "That's an interesting claim. Can you provide more specifics?";
   }
 }
+
+// Evaluate founder's response to VC interruption
+export const evaluateFounderResponse = action({
+  args: {
+    interruptionId: v.id("interruptions"),
+    sessionId: v.id("pitchSessions"),
+    founderResponse: v.string(),
+    vcQuestion: v.string(),
+  },
+  handler: async (ctx, args) => {
+    console.log("🔍 Evaluating founder response...");
+
+    try {
+      const groq = getGroqClient();
+
+      const evaluation = await groq.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: "You are evaluating a founder's response to a tough VC question. Analyze their tone, defensiveness, and quality of response. Reply with ONLY one word: defensive, receptive, or neutral."
+          },
+          {
+            role: "user",
+            content: `VC asked: "${args.vcQuestion}"\n\nFounder responded: "${args.founderResponse}"\n\nHow was the founder's reaction?`
+          }
+        ],
+        model: "llama-3.1-70b-versatile",
+        temperature: 0.3,
+        max_tokens: 10,
+      });
+
+      const reaction = evaluation.choices[0]?.message?.content?.toLowerCase().trim() as "defensive" | "receptive" | "neutral" | undefined;
+
+      console.log("📊 Founder reaction:", reaction);
+
+      // Update interruption with reaction via internal mutation
+      if (reaction && (reaction === "defensive" || reaction === "receptive" || reaction === "neutral")) {
+        await ctx.runMutation(internal.sessions.updateInterruptionReaction, {
+          interruptionId: args.interruptionId,
+          founderReaction: reaction,
+        });
+      }
+
+      return { reaction: reaction || "neutral" };
+    } catch (error) {
+      console.error("❌ Failed to evaluate response:", error);
+      return { reaction: "neutral" };
+    }
+  },
+});
 
 // Socratic mentorship chat using Google Gemini 1.5 Flash
 export const socraticChat = action({

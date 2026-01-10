@@ -77,6 +77,9 @@ const schema = defineSchema(
       founderReaction: v.optional(
         v.union(v.literal("defensive"), v.literal("receptive"), v.literal("neutral"))
       ),
+      // New fields for conversational mode
+      founderResponseText: v.optional(v.string()), // Founder's response to the interruption
+      responseTimestamp: v.optional(v.number()), // When founder responded
     }).index("by_session", ["sessionId"]),
 
     mentorshipChats: defineTable({
