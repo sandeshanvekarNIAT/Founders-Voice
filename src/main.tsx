@@ -12,6 +12,10 @@ import "./types/global.d.ts";
 // Lazy load route components for better code splitting
 const Landing = lazy(() => import("./pages/Landing.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
+const WarRoom = lazy(() => import("./pages/WarRoom.tsx"));
+const HotSeat = lazy(() => import("./pages/HotSeat.tsx"));
+const ReportCard = lazy(() => import("./pages/ReportCard.tsx"));
+const Mentorship = lazy(() => import("./pages/Mentorship.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 // Simple loading fallback for route transitions
@@ -61,7 +65,11 @@ createRoot(document.getElementById("root")!).render(
           <Suspense fallback={<RouteLoading />}>
             <Routes>
               <Route path="/" element={<Landing />} />
-              <Route path="/auth" element={<AuthPage redirectAfterAuth="/" />} /> {/* TODO: change redirect after auth to correct page */}
+              <Route path="/auth" element={<AuthPage redirectAfterAuth="/war-room" />} />
+              <Route path="/war-room" element={<WarRoom />} />
+              <Route path="/hot-seat/:sessionId" element={<HotSeat />} />
+              <Route path="/report/:sessionId" element={<ReportCard />} />
+              <Route path="/mentorship/:sessionId" element={<Mentorship />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
