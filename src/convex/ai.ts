@@ -28,7 +28,30 @@ function getGroqClient() {
   return new Groq({ apiKey });
 }
 
-// Generate the Fundability Report Card using Google Gemini 1.5 Flash
+// TEST: Simple Gemini API test
+export const testGeminiAPI = action({
+  args: {},
+  handler: async (ctx, args) => {
+    try {
+      console.log("🧪 Testing Gemini API...");
+      const genAI = getGeminiClient();
+      // Try the experimental 2.0 flash model which should be available
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+
+      const result = await model.generateContent("Say 'Hello from Gemini!' and nothing else.");
+      const response = result.response;
+      const text = response.text();
+
+      console.log("✅ Gemini API working! Response:", text);
+      return { success: true, response: text };
+    } catch (error: any) {
+      console.error("❌ Gemini API test failed:", error.message);
+      return { success: false, error: error.message };
+    }
+  },
+});
+
+// Generate the Fundability Report Card using Groq (Llama 3.1 70B) instead of Gemini
 export const generateReportCard = internalAction({
   args: { sessionId: v.id("pitchSessions") },
   handler: async (ctx, args): Promise<any> => {
@@ -58,7 +81,7 @@ export const generateReportCard = internalAction({
 
     console.log("📋 Interruptions retrieved:", interruptions.length);
 
-    // Build context for Gemini
+    // Build context for analysis
     const prompt = `You are a hardcore VC analyst using the Bill Payne Scorecard method. Analyze this pitch session and generate a comprehensive Fundability Report Card.
 
 PITCH CONTEXT:
@@ -93,16 +116,29 @@ Provide ONLY a JSON response with this EXACT structure (no markdown, no code blo
 }`;
 
     try {
-      console.log("🤖 Initializing Gemini API...");
-      const genAI = getGeminiClient();
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      console.log("🤖 Initializing Groq API (Llama 3.3 70B)...");
+      const groq = getGroqClient();
 
-      console.log("📤 Sending request to Gemini...");
-      const result = await model.generateContent(prompt);
-      const response = result.response;
-      const text = response.text();
+      console.log("📤 Sending request to Groq...");
+      const completion = await groq.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: "You are a brutal VC analyst. Respond ONLY with valid JSON, no markdown formatting."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        model: "llama-3.3-70b-versatile", // Updated to latest model
+        temperature: 0.7,
+        max_tokens: 2000,
+      });
 
-      console.log("📥 Received response from Gemini, length:", text.length);
+      const text = completion.choices[0]?.message?.content || "";
+
+      console.log("📥 Received response from Groq, length:", text.length);
       console.log("📄 Raw response preview:", text.substring(0, 200));
 
       // Clean up the response (remove markdown code blocks if present)
@@ -334,7 +370,7 @@ You are a hardcore VC who hates buzzwords. Call out if this sounds like a "GPT w
           content: prompts[triggerType as keyof typeof prompts],
         },
       ],
-      model: "llama-3.1-70b-versatile", // Fast and powerful
+      model: "llama-3.3-70b-versatile", // Fast and powerful
       temperature: 0.8,
       max_tokens: 150,
     });
@@ -372,7 +408,7 @@ export const evaluateFounderResponse = action({
             content: `VC asked: "${args.vcQuestion}"\n\nFounder responded: "${args.founderResponse}"\n\nHow was the founder's reaction?`
           }
         ],
-        model: "llama-3.1-70b-versatile",
+        model: "llama-3.3-70b-versatile",
         temperature: 0.3,
         max_tokens: 10,
       });

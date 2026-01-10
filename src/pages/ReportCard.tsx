@@ -81,7 +81,7 @@ export default function ReportCard() {
             <div className="text-6xl mb-4">🧠</div>
           </div>
           <p className="text-muted-foreground font-mono-terminal">
-            o1-mini is analyzing your pitch...
+            Analyzing your pitch with Llama 3.1 70B...
           </p>
         </div>
       </div>
