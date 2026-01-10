@@ -1,16 +1,24 @@
 "use node";
 
 import { v } from "convex/values";
-import { action, internalMutation } from "./_generated/server";
+import { action, internalAction, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization to avoid errors during module loading
+function getOpenAIClient() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error(
+      "OPENAI_API_KEY is not set. Please set it using: npx convex env set OPENAI_API_KEY <your-key>"
+    );
+  }
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 
 // Generate the Fundability Report Card using o1-mini
-export const generateReportCard = action({
+export const generateReportCard = internalAction({
   args: { sessionId: v.id("pitchSessions") },
   handler: async (ctx, args) => {
     // Get session data
@@ -65,6 +73,7 @@ Provide a JSON response with this structure:
 `;
 
     try {
+      const openai = getOpenAIClient();
       const response = await openai.chat.completions.create({
         model: "o1-mini",
         messages: [
@@ -183,6 +192,7 @@ You are a hardcore VC. Ask about the underlying numbers: CAC, LTV, runway, burn 
 You are a hardcore VC who hates buzzwords. Call out if this sounds like a "GPT wrapper" or generic tech claim. Demand specifics about the actual IP or moat. Keep it to 1-2 sentences.`,
   };
 
+  const openai = getOpenAIClient();
   const response = await openai.chat.completions.create({
     model: "gpt-4",
     messages: [
@@ -221,8 +231,8 @@ export const socraticChat = action({
       })
     ),
   },
-  handler: async (ctx, args) => {
-    const session = await ctx.runQuery(internal.sessions.getSessionInternal, {
+  handler: async (ctx, args): Promise<string> => {
+    const session: any = await ctx.runQuery(internal.sessions.getSessionInternal, {
       sessionId: args.sessionId,
     });
 
@@ -230,7 +240,7 @@ export const socraticChat = action({
       throw new Error("Session or report card not found");
     }
 
-    const systemPrompt = `You are a Socratic mentor helping a founder improve their business model.
+    const systemPrompt: string = `You are a Socratic mentor helping a founder improve their business model.
 
 CONTEXT FROM THEIR PITCH SESSION:
 - Market Clarity Score: ${session.reportCard.marketClarity}/100
@@ -250,7 +260,8 @@ Your role is to:
 
 Do not give direct answers. Ask questions that make them think deeper.`;
 
-    const response = await openai.chat.completions.create({
+    const openai = getOpenAIClient();
+    const response: any = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [
         { role: "system", content: systemPrompt },
@@ -261,7 +272,7 @@ Do not give direct answers. Ask questions that make them think deeper.`;
       temperature: 0.7,
     });
 
-    const assistantMessage = response.choices[0]?.message?.content || "";
+    const assistantMessage: string = response.choices[0]?.message?.content || "";
 
     // Save to chat history
     await ctx.runMutation(internal.sessions.addChatMessage, {
