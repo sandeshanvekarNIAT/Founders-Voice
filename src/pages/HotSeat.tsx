@@ -366,14 +366,14 @@ export default function HotSeat() {
   }
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
+    <div className="min-h-screen bg-background relative">
       {/* Grid background */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(94,106,210,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(94,106,210,0.03)_1px,transparent_1px)] bg-[size:64px_64px]" />
+      <div className="fixed inset-0 bg-[linear-gradient(rgba(94,106,210,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(94,106,210,0.03)_1px,transparent_1px)] bg-[size:64px_64px] -z-10" />
 
       <div className="relative z-10 container mx-auto px-4 py-8">
-        <div className="grid lg:grid-cols-3 gap-6 h-[calc(100vh-8rem)]">
+        <div className="grid lg:grid-cols-3 gap-6 min-h-[calc(100vh-8rem)]">
           {/* Left Column - Timer & Controls */}
-          <div className="lg:col-span-1 space-y-6">
+          <div className="lg:col-span-1 space-y-6 overflow-y-auto max-h-[calc(100vh-8rem)]">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
