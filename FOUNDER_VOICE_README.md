@@ -1,6 +1,6 @@
 # FOUNDER-VOICE: The Hardcore VC Simulator
 
-A high-stakes AI application that simulates a brutal 3-minute VC pitch interrogation. Built with React, Convex, OpenAI Realtime API, and o1-mini reasoning.
+A high-stakes AI application that simulates a brutal 3-minute VC pitch interrogation. Built with React, Convex, Google Gemini 1.5 Flash, and Groq/Llama 3.1 70B for ultra-fast AI responses.
 
 ## 🎯 Core Features
 
@@ -20,7 +20,7 @@ Three AI-powered triggers that detect problematic claims:
 Each interruption is logged in real-time with timestamps and categorization.
 
 ### 3. **Fundability Report Card**
-Generated post-session by OpenAI o1-mini using the Bill Payne Scorecard method:
+Generated post-session by Google Gemini 1.5 Flash using the Bill Payne Scorecard method:
 
 - **Market Clarity** (0-100): TAM/SAM credibility, competitor awareness
 - **Tech Defensibility** (0-100): IP strength, moat, "GPT wrapper" detection
@@ -34,7 +34,7 @@ Generated post-session by OpenAI o1-mini using the Bill Payne Scorecard method:
 
 ### 4. **Socratic Mentorship Mode**
 Post-session deep-dive coaching for each pillar:
-- GPT-4 powered Socratic questioning
+- Google Gemini 1.5 Flash powered Socratic questioning
 - Context-aware based on session performance
 - Focus areas: Market, Tech, Economics, Readiness
 - Persistent chat history per session
@@ -46,9 +46,10 @@ Post-session deep-dive coaching for each pillar:
 - **Routing**: React Router v7
 - **Backend**: Convex (real-time, serverless)
 - **AI Models**:
-  - OpenAI Realtime API (gpt-realtime-mini) - Voice
-  - OpenAI GPT-4 - Interruptions & Mentorship
-  - OpenAI o1-mini - Report Card Generation
+  - OpenAI Realtime API (gpt-realtime-mini) - Voice (WebSocket integration)
+  - Groq + Llama 3.1 70B - VC Interruptions (ultra-fast, 10x faster than GPT-4)
+  - Google Gemini 1.5 Flash - Report Card Generation & Mentorship
+  - Tavily API - Market research and fact-checking
 - **Styling**: Tailwind CSS + Glassmorphism
 - **Animation**: Framer Motion
 - **Audio**: Web Audio API
@@ -69,7 +70,8 @@ src/
 └── convex/
     ├── schema.ts            # Database schema
     ├── sessions.ts          # Session management
-    └── ai.ts                # OpenAI integrations
+    ├── ai.ts                # Gemini + Groq integrations
+    └── tavily.ts            # Market research API
 ```
 
 ## 🚀 Setup Instructions
@@ -77,26 +79,56 @@ src/
 ### Prerequisites
 - Node.js 18+
 - pnpm (recommended) or npm
-- OpenAI API key with Realtime API access
 - Convex account
+- **Free API Keys** (no credit card required):
+  - Google Gemini API key (60 requests/min free)
+  - Groq API key (14,400 requests/day free)
+  - Tavily API key (already configured)
 
 ### Environment Variables
 
-Create a `.env.local` file (or use the existing one) with:
+The following API keys must be added to your Convex environment variables:
+
+#### 1. Google Gemini API Key (Required)
+**Get it at**: https://aistudio.google.com/app/apikey
 
 ```bash
-# Convex (automatically set by Convex)
-VITE_CONVEX_URL=<your-convex-deployment-url>
-
-# Required for OpenAI integrations
-OPENAI_API_KEY=<your-openai-api-key>
+npx convex env set GOOGLE_GEMINI_API_KEY <your-key>
 ```
 
-**IMPORTANT**: The `OPENAI_API_KEY` must be added to your Convex environment variables:
+**Used for**:
+- Post-pitch Report Card generation
+- Socratic mentorship chat
+
+**Free tier**: 60 requests/minute, 1,500 requests/day
+
+---
+
+#### 2. Groq API Key (Required)
+**Get it at**: https://console.groq.com/keys
 
 ```bash
-npx convex env set OPENAI_API_KEY <your-key>
+npx convex env set GROQ_API_KEY <your-key>
 ```
+
+**Used for**:
+- Ultra-fast VC interruptions during pitch (10x faster than GPT-4)
+
+**Free tier**: 30 requests/minute, 14,400 requests/day
+
+---
+
+#### 3. Tavily API Key (Already Configured ✅)
+**Status**: Already set in your environment
+
+```bash
+# Already configured - no action needed
+TAVILY_API_KEY=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
+```
+
+**Used for**:
+- Pre-fetch market research before pitch
+- Tactical fact-checking during interruptions
 
 ### Installation
 

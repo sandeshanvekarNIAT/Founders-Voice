@@ -1,23 +1,34 @@
 "use node";
 
 import { v } from "convex/values";
-import { action, internalAction, internalMutation } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 
-// Lazy initialization to avoid errors during module loading
-function getOpenAIClient() {
-  if (!process.env.OPENAI_API_KEY) {
+// Lazy initialization for Google Gemini (for Report Cards & Mentorship)
+function getGeminiClient() {
+  const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
+  if (!apiKey) {
     throw new Error(
-      "OPENAI_API_KEY is not set. Please set it using: npx convex env set OPENAI_API_KEY <your-key>"
+      "GOOGLE_GEMINI_API_KEY is not set. Please set it using: npx convex env set GOOGLE_GEMINI_API_KEY <your-key>\nGet your free key at: https://ai.google.dev/"
     );
   }
-  return new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
+  return new GoogleGenerativeAI(apiKey);
 }
 
-// Generate the Fundability Report Card using o1-mini
+// Lazy initialization for Groq (for fast VC interruptions)
+function getGroqClient() {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "GROQ_API_KEY is not set. Please set it using: npx convex env set GROQ_API_KEY <your-key>\nGet your free key at: https://console.groq.com/"
+    );
+  }
+  return new Groq({ apiKey });
+}
+
+// Generate the Fundability Report Card using Google Gemini 1.5 Flash
 export const generateReportCard = internalAction({
   args: { sessionId: v.id("pitchSessions") },
   handler: async (ctx, args) => {
@@ -36,9 +47,8 @@ export const generateReportCard = internalAction({
       { sessionId: args.sessionId }
     );
 
-    // Build context for o1-mini
-    const context = `
-You are a hardcore VC analyst using the Bill Payne Scorecard method. Analyze this pitch session and generate a comprehensive Fundability Report Card.
+    // Build context for Gemini
+    const prompt = `You are a hardcore VC analyst using the Bill Payne Scorecard method. Analyze this pitch session and generate a comprehensive Fundability Report Card.
 
 PITCH CONTEXT:
 ${session.pitchContextText || "No written context provided"}
@@ -60,7 +70,7 @@ Calculate a COACHABILITY DELTA based on founder reactions:
 - Receptive reactions: ADD 5 points
 - Neutral: No change
 
-Provide a JSON response with this structure:
+Provide ONLY a JSON response with this EXACT structure (no markdown, no code blocks, just raw JSON):
 {
   "marketClarity": <0-100>,
   "techDefensibility": <0-100>,
@@ -69,28 +79,21 @@ Provide a JSON response with this structure:
   "overallScore": <average of 4 pillars>,
   "coachabilityDelta": <calculated from reactions>,
   "insights": "<brutally honest 3-5 sentence assessment>"
-}
-`;
+}`;
 
     try {
-      const openai = getOpenAIClient();
-      const response = await openai.chat.completions.create({
-        model: "o1-mini",
-        messages: [
-          {
-            role: "user",
-            content: context,
-          },
-        ],
-      });
+      const genAI = getGeminiClient();
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error("No response from OpenAI");
-      }
+      const result = await model.generateContent(prompt);
+      const response = result.response;
+      const text = response.text();
+
+      // Clean up the response (remove markdown code blocks if present)
+      const cleanText = text.replace(/```json\n?|\n?```/g, "").trim();
 
       // Parse the JSON response
-      const reportCard = JSON.parse(content);
+      const reportCard = JSON.parse(cleanText);
 
       // Save to database
       await ctx.runMutation(internal.sessions.updateReportCard, {
@@ -206,7 +209,7 @@ export const processAudioChunk = action({
   },
 });
 
-// Generate VC interruption using GPT-4 (with optional Tavily facts)
+// Generate VC interruption using Groq + Llama 3.1 70B (ultra-fast for real-time)
 async function generateVCInterruption(
   triggerType: string,
   founderStatement: string,
@@ -231,28 +234,34 @@ You are a hardcore VC. Ask about the underlying numbers: CAC, LTV, runway, burn 
 You are a hardcore VC who hates buzzwords. Call out if this sounds like a "GPT wrapper" or generic tech claim. ${tavilyFacts ? "Use the real data above to validate or challenge the technology claim." : "Demand specifics about the actual IP or moat."} Keep it to 1-2 sentences.`,
   };
 
-  const openai = getOpenAIClient();
-  const response = await openai.chat.completions.create({
-    model: "gpt-4",
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are a hardcore Silicon Valley VC conducting a brutal pitch interrogation. Be sharp, direct, and unforgiving. When given market data, cite it specifically.",
-      },
-      {
-        role: "user",
-        content: prompts[triggerType as keyof typeof prompts],
-      },
-    ],
-    max_tokens: 150,
-    temperature: 0.8,
-  });
+  try {
+    const groq = getGroqClient();
 
-  return response.choices[0]?.message?.content || "Explain that claim.";
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: "You are a hardcore Silicon Valley VC conducting a brutal pitch interrogation. Be sharp, direct, and unforgiving. When given market data, cite it specifically.",
+        },
+        {
+          role: "user",
+          content: prompts[triggerType as keyof typeof prompts],
+        },
+      ],
+      model: "llama-3.1-70b-versatile", // Fast and powerful
+      temperature: 0.8,
+      max_tokens: 150,
+    });
+
+    return chatCompletion.choices[0]?.message?.content || "Explain that claim.";
+  } catch (error) {
+    console.error("Groq API error:", error);
+    // Fallback to a generic response if Groq fails
+    return "That's an interesting claim. Can you provide more specifics?";
+  }
 }
 
-// Socratic mentorship chat
+// Socratic mentorship chat using Google Gemini 1.5 Flash
 export const socraticChat = action({
   args: {
     sessionId: v.id("pitchSessions"),
@@ -279,7 +288,7 @@ export const socraticChat = action({
       throw new Error("Session or report card not found");
     }
 
-    const systemPrompt: string = `You are a Socratic mentor helping a founder improve their business model.
+    const systemContext = `You are a Socratic mentor helping a founder improve their business model.
 
 CONTEXT FROM THEIR PITCH SESSION:
 - Market Clarity Score: ${session.reportCard.marketClarity}/100
@@ -299,28 +308,40 @@ Your role is to:
 
 Do not give direct answers. Ask questions that make them think deeper.`;
 
-    const openai = getOpenAIClient();
-    const response: any = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...args.conversationHistory,
-        { role: "user", content: args.userMessage },
-      ],
-      max_tokens: 300,
-      temperature: 0.7,
-    });
+    // Build conversation history for Gemini
+    const conversationText = args.conversationHistory
+      .map((msg) => `${msg.role === "user" ? "Founder" : "Mentor"}: ${msg.content}`)
+      .join("\n\n");
 
-    const assistantMessage: string = response.choices[0]?.message?.content || "";
+    const fullPrompt = `${systemContext}
 
-    // Save to chat history
-    await ctx.runMutation(internal.sessions.addChatMessage, {
-      sessionId: args.sessionId,
-      focusArea: args.focusArea,
-      userMessage: args.userMessage,
-      assistantMessage,
-    });
+CONVERSATION SO FAR:
+${conversationText}
 
-    return assistantMessage;
+Founder: ${args.userMessage}
+
+Mentor (respond with Socratic questions):`;
+
+    try {
+      const genAI = getGeminiClient();
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const result = await model.generateContent(fullPrompt);
+      const response = result.response;
+      const assistantMessage = response.text().trim();
+
+      // Save to chat history
+      await ctx.runMutation(internal.sessions.addChatMessage, {
+        sessionId: args.sessionId,
+        focusArea: args.focusArea,
+        userMessage: args.userMessage,
+        assistantMessage,
+      });
+
+      return assistantMessage;
+    } catch (error) {
+      console.error("Gemini API error:", error);
+      throw error;
+    }
   },
 });
