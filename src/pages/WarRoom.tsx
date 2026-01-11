@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Upload, Mic, FileText } from "lucide-react";
+import { Upload, Mic, FileText, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 export default function WarRoom() {
@@ -88,6 +88,18 @@ export default function WarRoom() {
           transition={{ duration: 0.6 }}
           className="max-w-4xl mx-auto"
         >
+          {/* Home Button */}
+          <div className="mb-8">
+            <Button
+              variant="ghost"
+              onClick={() => navigate("/")}
+              className="gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Home
+            </Button>
+          </div>
+
           {/* Header */}
           <div className="text-center mb-12">
             <motion.h1
