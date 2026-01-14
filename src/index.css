@@ -206,4 +206,36 @@
   .waveform-container {
     background: linear-gradient(to bottom, rgba(94, 106, 210, 0.1) 0%, transparent 100%);
   }
+
+  /* Custom scrollbar styling to match War Room theme */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(94, 106, 210, 0.3) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: rgba(94, 106, 210, 0.3);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(94, 106, 210, 0.5);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:active {
+    background: rgba(94, 106, 210, 0.7);
+  }
 }
