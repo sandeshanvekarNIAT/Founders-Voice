@@ -54,9 +54,12 @@ export default function Mentorship() {
   const [searchParams] = useSearchParams();
   const focusParam = searchParams.get("focus");
 
-  const [focusArea, setFocusArea] = useState<keyof typeof FOCUS_AREAS>(
-    (focusParam as keyof typeof FOCUS_AREAS) || "market"
-  );
+  // Validate focusParam is a valid key in FOCUS_AREAS
+  const validFocusParam = focusParam && focusParam in FOCUS_AREAS
+    ? (focusParam as keyof typeof FOCUS_AREAS)
+    : "market";
+
+  const [focusArea, setFocusArea] = useState<keyof typeof FOCUS_AREAS>(validFocusParam);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<
@@ -129,8 +132,10 @@ export default function Mentorship() {
     }
   };
 
-  const FocusIcon = FOCUS_AREAS[focusArea].icon;
-  const focusConfig = FOCUS_AREAS[focusArea];
+  // Ensure focusArea is always a valid key
+  const safeConfig = FOCUS_AREAS[focusArea] || FOCUS_AREAS.market;
+  const FocusIcon = safeConfig.icon;
+  const focusConfig = safeConfig;
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -175,6 +180,8 @@ export default function Mentorship() {
                 </h3>
                 <div className="space-y-2">
                   {Object.entries(FOCUS_AREAS).map(([key, config]) => {
+                    if (!config) return null; // Safety check
+
                     const Icon = config.icon;
                     const isActive = focusArea === key;
 
